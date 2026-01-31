@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OutSee</title>
+    <style>
+        :root {
+            --primary: #0a1aff;
+            --bg: #f4f4f7;
+            --white: #ffffff;
+            --text: #323130;
+            --gray: #605e5c;
+            --border: #edebe9;
+            --error: #d83b01;
+            --success: #107c10;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+
+        /* --- NOTIFICATIONS --- */
+        #toast-container {
+            position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+            z-index: 9999; width: 90%; max-width: 350px;
+        }
+        .toast {
+            background: #323130; color: white; padding: 12px 20px; border-radius: 8px;
+            margin-top: 10px; font-size: 0.9rem; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            animation: slideUp 0.3s ease-out; display: flex; align-items: center; justify-content: center; text-align: center;
+        }
+        @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { translateY(0); opacity: 1; } }
+
+        /* --- AUTH --- */
+        #auth-screen {
+            position: fixed; inset: 0; background: var(--white); z-index: 1000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+        }
+        .auth-card { width: 100%; max-width: 400px; text-align: center; }
+        .logo { font-size: 2.8rem; font-weight: 800; color: var(--primary); margin-bottom: 0.5rem; }
+        input, textarea { 
+            width: 100%; padding: 14px; margin: 8px 0; border: 1.5px solid var(--border); 
+            border-radius: 6px; font-size: 1rem; outline: none; transition: 0.2s;
+        }
+        input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(10, 26, 255, 0.1); }
+        button { 
+            width: 100%; padding: 14px; background: var(--primary); color: white; 
+            border: none; border-radius: 6px; font-weight: 600; cursor: pointer; margin-top: 12px; font-size: 1rem;
+        }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .toggle-auth { margin-top: 20px; color: var(--primary); cursor: pointer; font-size: 0.95rem; font-weight: 500; }
+
+        /* --- APP --- */
+        #app { display: none; grid-template-columns: 260px 1fr; height: 100vh; }
+        aside { background: #f3f2f1; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+        .nav-item { padding: 16px 24px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: #323130; font-weight: 500; }
+        .nav-item.active { background: var(--white); color: var(--primary); border-left: 4px solid var(--primary); }
+        .logout-btn { margin-top: auto; border-top: 1px solid var(--border); color: var(--error); }
+
+        main { display: flex; flex-direction: column; background: var(--white); overflow-y: auto; }
+        .header { padding: 18px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 1.25rem; background: var(--white); position: sticky; top: 0; z-index: 10; }
+        
+        .mail-item { padding: 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: 0.1s; }
+        .mail-item.unread { font-weight: 700; border-left: 4px solid var(--primary); background: #f0f4ff; }
+        .mail-item .meta { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--gray); margin-bottom: 6px; }
+        .mail-item .subject { font-size: 1rem; margin-bottom: 4px; color: #201f1e; }
+        .mail-item .preview { font-size: 0.9rem; color: var(--gray); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .full-view { padding: 24px; display: none; }
+        .composer { padding: 24px; display: none; flex-direction: column; gap: 12px; height: 100%; }
+        .btn-back { margin-bottom: 20px; background: #f3f2f1; color: #323130; width: fit-content; padding: 8px 16px; border-radius: 4px; border: 1px solid #ddd; font-weight: 600; cursor: pointer; }
+
+        @media (max-width: 768px) {
+            #app { grid-template-columns: 1fr; }
+            aside { position: fixed; bottom: 0; width: 100%; height: 70px; flex-direction: row; z-index: 100; border-top: 1px solid var(--border); }
+            .nav-item { flex: 1; justify-content: center; font-size: 0.8rem; padding: 10px; border: none; flex-direction: column; gap: 4px; }
+            .nav-item.active { border-left: none; border-top: 4px solid var(--primary); }
+            main { padding-bottom: 80px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="toast-container"></div>
+
+    <div id="auth-screen">
+        <div class="auth-card">
+            <div class="logo">OutSee</div>
+            <h2 id="auth-title">Bienvenue</h2>
+            <p id="auth-sub" style="color:var(--gray); margin-bottom:20px;">Accédez à votre messagerie</p>
+            <input type="text" id="auth-user" placeholder="Nom d'utilisateur">
+            <input type="password" id="auth-pass" placeholder="Mot de passe">
+            <button id="auth-btn" onclick="handleAuth()">Se connecter</button>
+            <div class="toggle-auth" onclick="toggleAuthMode()">Créer un compte @kiko.com</div>
+        </div>
+    </div>
+
+    <div id="app">
+        <aside>
+            <div class="nav-item active" id="nav-inbox" onclick="showSection('inbox')"><span>📥</span> Boîte</div>
+            <div class="nav-item" id="nav-sent" onclick="showSection('sent')"><span>📤</span> Envoyés</div>
+            <div class="nav-item" id="nav-compose" onclick="showSection('compose')"><span>✍️</span> Rédiger</div>
+            <div class="nav-item logout-btn" onclick="logout()"><span>🚪</span> Quitter</div>
+        </aside>
+
+        <main>
+            <div id="view-list">
+                <div class="header" id="list-title">Chargement...</div>
+                <div id="mail-container"></div>
+            </div>
+
+            <div id="view-read" class="full-view">
+                <button class="btn-back" onclick="closeMail()">← Retour</button>
+                <h2 id="read-subject"></h2>
+                <div style="font-size: 0.95rem; border-left: 3px solid var(--border); padding-left: 15px; margin: 20px 0;">
+                    <div>De: <b id="read-from"></b></div>
+                    <div style="color:var(--gray)">À: <span id="read-to"></span></div>
+                </div>
+                <div id="read-body" style="white-space: pre-wrap; line-height: 1.7;"></div>
+            </div>
+
+            <div id="view-compose" class="composer">
+                <div class="header" style="padding:0 0 15px 0; border:none;">Nouveau message</div>
+                <input type="text" id="comp-to" placeholder="Destinataire (ex: pierre@kiko.com)">
+                <input type="text" id="comp-subject" placeholder="Objet">
+                <textarea id="comp-body" style="flex:1; padding:15px; resize:none;" placeholder="Écrivez ici..."></textarea>
+                <button onclick="sendMail()" id="send-btn">Envoyer</button>
+            </div>
+        </main>
+    </div>
+
+    <script type="module">
+    
+    const manifest = {
+        "name": "OutSee", "short_name": "OutSee", "start_url": window.location.href,
+        "display": "standalone", "background_color": "#e7ebf0", "theme_color": "#0088cc",
+        "icons": [{"src": "https://cdn-icons-png.flaticon.com/512/906/906312.png", "sizes": "192x192", "type": "image/png"}]
+    };
+    const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+    const link = document.createElement('link'); link.rel = 'manifest'; link.href = URL.createObjectURL(blob);
+    document.head.appendChild(link);
+
+    
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, doc, updateDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCTaD2mcspcnni4M5w14VjF0n0dg_Amw-0",
+            authDomain: "outlook-e3e80.firebaseapp.com",
+            projectId: "outlook-e3e80",
+            storageBucket: "outlook-e3e80.firebasestorage.app",
+            messagingSenderId: "155299253427",
+            appId: "1:155299253427:web:50c1bdfd8aac881948f4c6"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // --- NOTIFICATIONS ---
+        window.notify = (msg, type = 'info') => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            if(type === 'error') toast.style.borderLeft = "5px solid var(--error)";
+            if(type === 'success') toast.style.borderLeft = "5px solid var(--success)";
+            toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }, 3000);
+        };
+
+        // --- AUTH ---
+        let currentUser = JSON.parse(localStorage.getItem('kiko_user')) || null;
+        let isLoginMode = true;
+        let unsub = null;
+
+        async function hash(string) {
+            const utf8 = new TextEncoder().encode(string);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', utf8);
+            return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        window.toggleAuthMode = () => {
+            isLoginMode = !isLoginMode;
+            document.getElementById('auth-title').innerText = isLoginMode ? "Connexion" : "Création de compte";
+            document.getElementById('auth-btn').innerText = isLoginMode ? "Se connecter" : "S'inscrire";
+            document.querySelector('.toggle-auth').innerText = isLoginMode ? "Créer un compte @kiko.com" : "Déjà membre ? Se connecter";
+        };
+
+        window.handleAuth = async () => {
+            const pseudo = document.getElementById('auth-user').value.trim().toLowerCase();
+            const pass = document.getElementById('auth-pass').value;
+            if(!pseudo || !pass) return notify("Champs vides !", "error");
+
+            const email = pseudo.includes('@') ? pseudo : `${pseudo}@kiko.com`;
+            const hashedPass = await hash(pass);
+            const btn = document.getElementById('auth-btn');
+            btn.disabled = true;
+
+            try {
+                if(isLoginMode) {
+                    const q = query(collection(db, "users"), where("email", "==", email), where("password", "==", hashedPass));
+                    const snap = await getDocs(q);
+                    if(snap.empty) { notify("Identifiants incorrects", "error"); btn.disabled = false; return; }
+                    login(email);
+                } else {
+                    const q = query(collection(db, "users"), where("email", "==", email));
+                    const snap = await getDocs(q);
+                    if(!snap.empty) { notify("Ce pseudo est déjà pris", "error"); btn.disabled = false; return; }
+                    await addDoc(collection(db, "users"), { email, password: hashedPass });
+                    notify("Compte créé avec succès !", "success");
+                    login(email);
+                }
+            } catch (e) { notify("Erreur serveur", "error"); btn.disabled = false; }
+        };
+
+        const login = (email) => {
+            currentUser = email;
+            localStorage.setItem('kiko_user', JSON.stringify(email));
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('app').style.display = 'grid';
+            showSection('inbox');
+        };
+
+        window.logout = () => { localStorage.removeItem('kiko_user'); location.reload(); };
+
+        // --- UI ---
+        window.showSection = (section) => {
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            document.getElementById('view-list').style.display = 'none';
+            document.getElementById('view-read').style.display = 'none';
+            document.getElementById('view-compose').style.display = 'none';
+
+            if(section === 'compose') {
+                document.getElementById('view-compose').style.display = 'flex';
+                document.getElementById('nav-compose').classList.add('active');
+            } else {
+                document.getElementById('view-list').style.display = 'block';
+                document.getElementById('list-title').innerText = section === 'inbox' ? 'Boîte de réception' : 'Éléments envoyés';
+                document.getElementById(section === 'inbox' ? 'nav-inbox' : 'nav-sent').classList.add('active');
+                listenMails(section);
+            }
+        };
+
+        const listenMails = (type) => {
+            if(unsub) unsub();
+            const field = type === 'inbox' ? 'to' : 'from';
+            const q = query(collection(db, "mails"), where(field, "==", currentUser), orderBy("timestamp", "desc"));
+            unsub = onSnapshot(q, (snap) => {
+                const container = document.getElementById('mail-container');
+                container.innerHTML = snap.empty ? "<div style='text-align:center; padding:50px; color:gray;'>Aucun message.</div>" : "";
+                snap.forEach(d => {
+                    const m = d.data();
+                    const item = document.createElement('div');
+                    item.className = `mail-item ${type === 'inbox' && !m.read ? 'unread' : ''}`;
+                    item.innerHTML = `
+                        <div class="meta"><span>${type === 'inbox' ? m.from : 'À: '+m.to}</span><span>${new Date(m.timestamp).toLocaleDateString()}</span></div>
+                        <div class="subject">${m.subject || '(Sans objet)'}</div>
+                        <div class="preview">${m.body}</div>`;
+                    item.onclick = () => openMail(d.id, m);
+                    container.appendChild(item);
+                });
+            });
+        };
+
+        window.openMail = async (id, m) => {
+            document.getElementById('view-list').style.display = 'none';
+            document.getElementById('view-read').style.display = 'block';
+            document.getElementById('read-subject').innerText = m.subject || "(Sans objet)";
+            document.getElementById('read-from').innerText = m.from;
+            document.getElementById('read-to').innerText = m.to;
+            document.getElementById('read-body').innerText = m.body;
+            if(m.to === currentUser && !m.read) await updateDoc(doc(db, "mails", id), { read: true });
+        };
+
+        window.closeMail = () => { document.getElementById('view-read').style.display = 'none'; document.getElementById('view-list').style.display = 'block'; };
+
+        // --- ENVOI AVEC VERIFICATION DU DESTINATAIRE ---
+        window.sendMail = async () => {
+            const to = document.getElementById('comp-to').value.trim().toLowerCase();
+            const subject = document.getElementById('comp-subject').value.trim();
+            const body = document.getElementById('comp-body').value;
+
+            if(!to.includes('@kiko.com')) return notify("L'adresse doit être en @kiko.com", "error");
+            if(!body) return notify("Le message est vide !", "error");
+            
+            const btn = document.getElementById('send-btn');
+            btn.disabled = true;
+            btn.innerText = "Vérification...";
+
+            try {
+                // VERIFICATION : Est-ce que ce destinataire existe dans la collection "users" ?
+                const q = query(collection(db, "users"), where("email", "==", to));
+                const userSnap = await getDocs(q);
+
+                if(userSnap.empty) {
+                    notify("Le destinataire n'existe pas !", "error");
+                    btn.disabled = false;
+                    btn.innerText = "Envoyer";
+                    return;
+                }
+
+                // Si il existe, on envoie
+                await addDoc(collection(db, "mails"), {
+                    from: currentUser,
+                    to, subject, body,
+                    timestamp: Date.now(),
+                    read: false
+                });
+                notify("Message envoyé !", "success");
+                document.getElementById('comp-to').value = "";
+                document.getElementById('comp-subject').value = "";
+                document.getElementById('comp-body').value = "";
+                showSection('sent');
+            } catch (e) { notify("Erreur d'envoi", "error"); }
+            btn.disabled = false;
+            btn.innerText = "Envoyer";
+        };
+
+        if(currentUser) login(currentUser);
+
+</script>
+</body>
+</html>
